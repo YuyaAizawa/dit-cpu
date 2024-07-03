@@ -19,6 +19,8 @@
 .flex-container {
   display: flex;
   justify-content: space-around;
+  flex-wrap: wrap;
+  column-gap: 2rem;
   align-items: flex-start;
 }
 
@@ -36,8 +38,10 @@ body {
   font-size: 18px;
   color: #000E16;
   #center {
-    width: 920px;
+    max-width: 920px;
+    min-width: 480px;
     margin: 0 auto;
+    padding: 1rem 2rem;
   }
 }
 
@@ -52,7 +56,7 @@ h1:before {
   position: absolute;
   bottom: -4px;
   left: 0;
-  width: 14%;
+  width: 130px;
   height: 4px;
   content: '';
   background: var(--base-color);
@@ -71,6 +75,14 @@ h3 {
 button {
   font-family: Tahoma;
   font-size: 1rem;
+}
+
+.program-pane {
+  flex-grow: 1;
+}
+
+.data-pane {
+  flex-grow: 0;
 }
 
 .tab-container {
@@ -110,7 +122,7 @@ button {
 }
 
 .program {
-  width: calc(40ch + 2rem);
+  width: 100%;
   height: calc(1.2em * 15);
   background-color: #FFF;
   resize: none;
