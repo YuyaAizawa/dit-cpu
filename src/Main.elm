@@ -278,38 +278,49 @@ registerView label value prev =
 
 memoryView : Memory -> Memory -> Html msg
 memoryView memory prev =
-  Html.table [ Attr.class "memory" ]
-    [ Html.thead [] [ headerRow ]
-    , Html.tbody [] (( memory, prev ) |> Memory.to2dList |> List.indexedMap rowView)
-    ]
-
-
-headerRow : Html msg
-headerRow =
-  Html.tr []
-    (Html.th [] [] :: (List.range 0 9 |> List.map intTh))
-
-
-rowView : Int -> List ( Dudit, Dudit ) -> Html msg
-rowView rowIdx row =
   let
-    header =
-      intTh (rowIdx * 10)
+    celler coords =
+      case coords of
+        ( 0, 0 ) ->
+          Html.th [] []
 
-    cells =
-      row |> List.map cellView
+        ( 0, x ) ->
+          Html.th [] [ Html.text <| String.fromInt <| x - 1 ]
+
+        ( y, 0 ) ->
+          Html.th [] [ Html.text <| String.fromInt <| (y - 1) * 10 ]
+
+        ( x, y ) ->
+          let
+            addr =
+              (y - 1) * 10 + (x - 1)
+                |> Dudit.fromInt
+
+            value =
+              memory
+                |> Memory.load addr
+
+            prevValue =
+              prev
+                |> Memory.load addr
+          in
+            Html.td [] [ highlightChange value prevValue ]
   in
-    Html.tr [] (header :: cells)
+    table [ Attr.class "memory" ] 11 11 celler
 
 
-intTh : Int -> Html msg
-intTh int =
-  Html.th [] [ Html.text <| String.fromInt <| int ]
-
-
-cellView : ( Dudit, Dudit ) -> Html msg
-cellView ( value, prev ) =
-  Html.td [] [ highlightChange value prev ]
+table : List (Html.Attribute msg) -> Int -> Int -> (( Int, Int ) -> Html msg) -> Html msg
+table attributes columns rows celler =
+  let
+    tbody =
+      List.range 0 (rows - 1)
+        |> List.map (\y ->
+        List.range 0 (columns - 1)
+          |> List.map (\x -> celler ( x, y ))
+          |> Html.tr [])
+        |> Html.tbody []
+  in
+    Html.table attributes [ tbody ]
 
 
 highlightChange : Dudit -> Dudit -> Html msg

@@ -3,7 +3,6 @@ module MomoRisc.Memory exposing
   , zeros
   , load
   , store
-  , to2dList
   )
 
 import Array exposing (Array)
@@ -33,22 +32,3 @@ store addr data (Memory array) =
   array
     |> Array.set (Dudit.toInt addr) data
     |> Memory
-
-
-to2dList : ( Memory, Memory ) -> List (List ( Dudit, Dudit ))
-to2dList ( Memory array, Memory prev ) =
-  let
-    list =
-      List.map2 Tuple.pair (Array.toList array) (Array.toList prev)
-  in
-    to2dListHelp list []
-
-
-to2dListHelp : List ( Dudit, Dudit ) -> List (List ( Dudit, Dudit )) -> List (List ( Dudit, Dudit ))
-to2dListHelp rest acc =
-  case rest of
-    [] ->
-      acc |> List.reverse
-
-    list ->
-      to2dListHelp (list |> List.drop 10) ((list |> List.take 10) :: acc)

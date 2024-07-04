@@ -3,6 +3,7 @@ module MomoRisc.Dudit exposing
   , zero
   , one
   , eq
+  , fromInt
   , toInt
   , fromString
   , toString
@@ -26,6 +27,11 @@ one = Dudit 1
 eq : Dudit -> Dudit -> Bool
 eq (Dudit v1) (Dudit v2) =
   v1 == v2
+
+
+fromInt : Int -> Dudit
+fromInt int =
+  Dudit (modBy 100 int)
 
 
 toInt : Dudit -> Int
