@@ -18,7 +18,7 @@ import MomoRisc.Inst as Inst exposing (Inst, ParseErr)
 type Program = Program (Array Inst)
 
 type alias LineNum = Int
-type alias DebugInfo = Array LineNum
+type alias DebugInfo = Dict LineNum Dudit
 type alias Errors = Dict LineNum ParseErr
 
 
@@ -47,9 +47,8 @@ compile source =
 
     debugInfo =
       lineByLine
-        |> List.map Tuple.second
-        |> Array.fromList
-        |> fillRest 100 -1
+        |> List.indexedMap (\addr ( _, lineNum ) -> ( lineNum, Dudit.fromInt addr ))
+        |> Dict.fromList
 
     errors =
       lineByLine
@@ -71,7 +70,7 @@ fillRest size pad array =
     Array.append array pads
 
 
-compileLineByLine : String -> List ( Result ParseErr Inst, Int )
+compileLineByLine : String -> List ( Result ParseErr Inst, LineNum )
 compileLineByLine source =
   source
     |> String.lines

@@ -184,7 +184,7 @@ sourceView model =
             EditTab ->
               [ editView model.source ]
             CheckTab ->
-              [ checkView model.source model.errors model.cpu
+              [ checkAndRunView model.source model.debug model.errors model.cpu
               , Html.button [ onClick Step ][ Html.text "Step" ]
               ]
           )
@@ -202,12 +202,37 @@ editView source =
     []
 
 
-checkView : String -> Dict LineNum ParseErr -> Cpu -> Html msg
-checkView source errors cpu =
-  (source ++ "\n")
-    |> String.lines
-    |> List.indexedMap (\lineNum str -> lineView (lineNum == Dudit.toInt cpu.pc) str (Dict.get lineNum errors))
-    |> Html.div [ Attr.class "program" ]
+checkAndRunView : String -> Dict LineNum Dudit -> Dict LineNum ParseErr -> Cpu -> Html msg
+checkAndRunView source debug errors cpu =
+  let
+    addrAndCodeView : LineNum -> String -> ( Html msg, Html msg )
+    addrAndCodeView lineNum str =
+      let
+        addr =
+          Dict.get lineNum debug
+
+        running =
+          addr
+            |> Maybe.map (Dudit.eq cpu.pc)
+            |> Maybe.withDefault False
+
+        error =
+          Dict.get lineNum errors
+      in
+        ( addrView addr, lineView running str error )
+
+    ( lineNums, code ) =
+      (source ++ "\n")
+        |> String.lines
+        |> List.indexedMap addrAndCodeView
+        |> List.unzip
+  in
+    Html.div [ Attr.class "program" ]
+      [ Html.div [ Attr.class "code-with-addr" ]
+        [ Html.div [ Attr.class "addr" ] lineNums
+        , Html.div [] code
+        ]
+      ]
 
 
 lineView : Bool -> String -> Maybe ParseErr -> Html msg
@@ -216,7 +241,7 @@ lineView cursor str maybeErr =
     line =
       case maybeErr of
         Nothing ->
-          [ Html.text str ]
+          [ brIfEmpty str ]
 
         Just err ->
           case err of
@@ -244,6 +269,18 @@ lineView cursor str maybeErr =
       |> Html.div [ Attr.class "line" ]
 
 
+addrView : Maybe Dudit -> Html msg
+addrView maybeAddr =
+  let
+    content =
+      maybeAddr
+        |> Maybe.map Dudit.toString
+        |> Maybe.withDefault ""
+        |> brIfEmpty
+  in
+    Html.div [] [ content ]
+
+
 wordErr : Int -> String -> List (Html msg)
 wordErr i str =
   str
@@ -258,6 +295,16 @@ wordErr i str =
 errSpan : String -> Html msg
 errSpan str =
   Html.span [ Attr.class "error" ] [ Html.text str ]
+
+
+brIfEmpty : String -> Html msg
+brIfEmpty str =
+  case str of
+    "" ->
+      Html.br [] []
+
+    _ ->
+      Html.text str
 
 
 ariaSelected : Bool -> Html.Attribute msg

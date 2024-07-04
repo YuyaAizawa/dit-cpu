@@ -145,8 +145,15 @@ button {
     position: absolute;
     user-select: none;
     font-size: 12px;
-    color: #666666;
+    color: var(--base-color);
     left: -0.4rem;
+  }
+  .code-with-addr {
+    display: flex;
+    column-gap: 1rem;
+  }
+  .addr {
+    color: #AAA;
   }
 }
 
