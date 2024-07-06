@@ -1,8 +1,8 @@
 module MomoRisc.Memory exposing
   ( Memory
   , zeros
-  , load
-  , store
+  , read
+  , write
   )
 
 import Array exposing (Array)
@@ -20,15 +20,15 @@ zeros =
   Memory (Array.repeat 100 Dudit.zero)
 
 
-load : Dudit -> Memory -> Dudit
-load addr (Memory array) =
+read : Dudit -> Memory -> Dudit
+read addr (Memory array) =
   array
     |> Array.get (Dudit.toInt addr)
     |> Maybe.withDefault Dudit.zero -- never happen
 
 
-store : Dudit -> Dudit -> Memory -> Memory
-store addr data (Memory array) =
+write : Dudit -> Dudit -> Memory -> Memory
+write addr data (Memory array) =
   array
     |> Array.set (Dudit.toInt addr) data
     |> Memory

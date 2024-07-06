@@ -1,12 +1,12 @@
 module MomoRisc.Cpu exposing
   ( Cpu
+  , MemoryAccessPhaseAction(..)
   , init
   , step
   )
 
 import MomoRisc.Dudit as Dudit exposing (Dudit, zero, one, add, sub, toInt)
 import MomoRisc.Inst as Inst exposing (Inst(..))
-import MomoRisc.Memory as Memory exposing (Memory, load, store)
 import MomoRisc.Program as Program exposing (Program)
 import MomoRisc.Reg as Reg exposing (Reg(..))
 
@@ -21,6 +21,12 @@ type alias Cpu =
   }
 
 
+type MemoryAccessPhaseAction
+  = NoAccessNeeded Cpu
+  | ReadNeeded Dudit (Dudit -> Cpu)
+  | WriteNeeded Dudit Dudit Cpu
+
+
 init : Cpu
 init =
   { pc = zero
@@ -31,8 +37,8 @@ init =
   }
 
 
-step : Program -> Memory -> Cpu -> ( Cpu, Memory )
-step prog mem cpu =
+step : Program -> Cpu -> MemoryAccessPhaseAction
+step prog cpu =
   case Program.fetch cpu.pc prog of
     LDI rd imm ->
       let
@@ -41,27 +47,25 @@ step prog mem cpu =
             |> write rd imm
             |> incPc
       in
-        ( cpu_, mem )
+        NoAccessNeeded cpu_
 
     LD rd rs ->
       let
         addr = read rs cpu
-        data = load addr mem
-        cpu_ =
+        cpu_ data =
           cpu
             |> write rd data
             |> incPc
       in
-        ( cpu_, mem )
+        ReadNeeded addr cpu_
 
     ST rd rs ->
       let
         data = read rs cpu
         addr = read rd cpu
-        mem_ = store addr data mem
         cpu_ = incPc cpu
       in
-        ( cpu_, mem_ )
+        WriteNeeded addr data cpu_
 
     ADD rd rs1 rs2 ->
       let
@@ -73,7 +77,7 @@ step prog mem cpu =
             |> write rd r
             |> incPc
       in
-        ( cpu_, mem )
+        NoAccessNeeded cpu_
 
     ADI rd rs imm ->
       let
@@ -85,7 +89,7 @@ step prog mem cpu =
             |> write rd r
             |> incPc
       in
-        ( cpu_, mem )
+        NoAccessNeeded cpu_
 
     SUB rd rs1 rs2 ->
       let
@@ -97,7 +101,7 @@ step prog mem cpu =
             |> write rd r
             |> incPc
       in
-        ( cpu_, mem )
+        NoAccessNeeded cpu_
 
     BEQ rs1 rs2 imm ->
       let
@@ -109,7 +113,7 @@ step prog mem cpu =
           else add cpu.pc one
         cpu_ = { cpu | pc = pc }
       in
-        ( cpu_, mem )
+        NoAccessNeeded cpu_
 
     BLT rs1 rs2 imm ->
       let
@@ -121,14 +125,14 @@ step prog mem cpu =
           else add cpu.pc one
         cpu_ = { cpu | pc = pc }
       in
-        ( cpu_, mem )
+        NoAccessNeeded cpu_
 
     JPI rd imm ->
       let
         cpu_ = write rd (add cpu.pc one) cpu
         cpu__ = { cpu_ | pc = imm }
       in
-        ( cpu__, mem )
+        NoAccessNeeded cpu_
 
     JP rd rs ->
       let
@@ -136,10 +140,10 @@ step prog mem cpu =
         addr = read rs cpu_
         cpu__ = { cpu_ | pc = addr }
       in
-        ( cpu__, mem )
+        NoAccessNeeded cpu_
 
     HLT ->
-      ( cpu, mem )
+      NoAccessNeeded cpu
 
 
 read : Reg -> Cpu -> Dudit

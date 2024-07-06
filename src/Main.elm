@@ -8,7 +8,7 @@ import Html.Attributes as Attr
 import Html.Events exposing (onClick)
 import Html.Events.Extra exposing (onChange)
 
-import MomoRisc.Cpu as Cpu exposing (Cpu)
+import MomoRisc.Cpu as Cpu exposing (Cpu, MemoryAccessPhaseAction(..))
 import MomoRisc.Inst as Inst exposing (Inst, ParseErr)
 import MomoRisc.Memory as Memory exposing (Memory)
 import MomoRisc.Dudit as Dudit exposing (Dudit)
@@ -24,7 +24,9 @@ main =
 
 
 
+-----------
 -- MODEL --
+-----------
 
 type alias Model =
   { cpu : Cpu
@@ -33,10 +35,8 @@ type alias Model =
   , source : String
   , errors : Errors
   , debug : DebugInfo
-  , lastCycle :
-    { cpu : Cpu
-    , memory : Memory
-    }
+  , lastCycle : Cpu
+  , wroteAddr : Maybe Dudit
   , tab : Tab
   }
 
@@ -58,12 +58,11 @@ init =
     , source = sampleCode
     , errors = errors
     , debug = debug
-    , lastCycle =
-      { cpu = Cpu.init
-      , memory = Memory.zeros
-      }
+    , lastCycle = Cpu.init
+    , wroteAddr = Nothing
     , tab = EditTab
     }
+
 
 sampleCode : String
 sampleCode =
@@ -75,8 +74,9 @@ HLT
 """
 
 
-
+------------
 -- UPDATE --
+------------
 
 type Msg
   = SourceEdited String
@@ -105,10 +105,8 @@ update msg model =
               , errors = errors
               , cpu = Cpu.init
               , memory = Memory.zeros
-              , lastCycle =
-                { cpu = Cpu.init
-                , memory = Memory.zeros
-                }
+              , lastCycle = Cpu.init
+              , wroteAddr = Nothing
               , tab = tab
               }
 
@@ -117,42 +115,60 @@ update msg model =
 
     Step ->
       let
-        ( cpu, memory ) =
-          model.cpu
-            |> Cpu.step model.program model.memory
+        ( cpu, memory, wroteAddr ) =
+          case Cpu.step model.program model.cpu of
+            NoAccessNeeded cpu_ ->
+              ( cpu_, model.memory, Nothing )
+
+            ReadNeeded addr fun ->
+              let
+                cpu_ =
+                  model.memory
+                    |> Memory.read addr
+                    |> fun
+              in
+                ( cpu_, model.memory, Nothing )
+
+            WriteNeeded addr data cpu_ ->
+              let
+                memory_ = model.memory |> Memory.write addr data
+              in
+                ( cpu_, memory_, Just addr )
       in
         { model
         | cpu = cpu
         , memory = memory
-        , lastCycle =
-          { cpu = model.cpu
-          , memory = model.memory
-          }
+        , lastCycle = model.cpu
+        , wroteAddr = wroteAddr
         }
 
 
+----------
 -- VIEW --
+----------
 
 view : Model -> Html Msg
 view model =
-  Html.div [ Attr.id "elm-erea"]
+  Html.div [ Attr.id "elm-erea" ]
     [ Html.h2 [] [ Html.text "CPU Emulator" ]
-    , Html.div [ Attr.id "emulator", Attr.class "section-container flex-container" ]
-      [ Html.div [ Attr.class "program-pane" ]
-          [ Html.h3 [] [ Html.text "Program" ]
-          , sourceView model
+    , Html.div [ Attr.class "section-container" ]
+      [ Html.div [ Attr.class "flex-container" ]
+        [ Html.div [ Attr.class "program-pane" ]
+            [ Html.h3 [] [ Html.text "Program" ]
+            , programView model
+            ]
+        , Html.div [ Attr.class "data-pane" ]
+          [ Html.h3 [] [ Html.text "Register" ]
+          , Html.div [ Attr.class "registers box-frame" ]
+            [ registerView "PC" model.cpu.pc model.lastCycle.pc
+            , registerView "A" model.cpu.a model.lastCycle.a
+            , registerView "B" model.cpu.b model.lastCycle.b
+            , registerView "C" model.cpu.c model.lastCycle.c
+            , registerView "D" model.cpu.d model.lastCycle.d
+            ]
+          , Html.h3 [] [ Html.text "Memory" ]
+          , memoryView model.wroteAddr model.memory
           ]
-      , Html.div [ Attr.class "data-pane" ]
-        [ Html.h3 [] [ Html.text "Register" ]
-        , Html.div [ Attr.class "registers" ]
-          [ registerView "PC" model.cpu.pc model.lastCycle.cpu.pc
-          , registerView "A" model.cpu.a model.lastCycle.cpu.a
-          , registerView "B" model.cpu.b model.lastCycle.cpu.b
-          , registerView "C" model.cpu.c model.lastCycle.cpu.c
-          , registerView "D" model.cpu.d model.lastCycle.cpu.d
-          ]
-        , Html.h3 [] [ Html.text "Memory" ]
-        , memoryView model.memory model.lastCycle.memory
         ]
       ]
     ]
@@ -161,8 +177,8 @@ view model =
 
 -- PROGRAM PANE --
 
-sourceView : Model -> Html Msg
-sourceView model =
+programView : Model -> Html Msg
+programView model =
   let
     tabView tab text =
       Html.button
@@ -194,7 +210,8 @@ sourceView model =
 editView : String -> Html Msg
 editView source =
   Html.textarea
-    [ Attr.class "program"
+    [ Attr.class "program editor-content box-frame"
+    , Attr.placeholder "Program"
     , onChange SourceEdited
     , Attr.value source
     , Attr.spellcheck False
@@ -227,7 +244,7 @@ checkAndRunView source debug errors cpu =
         |> List.indexedMap addrAndCodeView
         |> List.unzip
   in
-    Html.div [ Attr.class "program" ]
+    Html.div [ Attr.class "program check-and-run-content box-frame" ]
       [ Html.div [ Attr.class "code-with-addr" ]
         [ Html.div [ Attr.class "addr" ] lineNums
         , Html.div [] code
@@ -317,14 +334,23 @@ ariaSelected bool =
 
 registerView : String -> Dudit -> Dudit -> Html msg
 registerView label value prev =
-  Html.div [ Attr.class "register" ]
-    [ Html.div [ Attr.class "register-label" ] [ Html.text (label ++ ":") ]
-    , Html.div [ Attr.class "register-value" ] [ highlightChange value prev ]
-    ]
+  let
+    text = Html.text (Dudit.toString value)
+
+    inner =
+      if Dudit.eq value prev then
+        text
+      else
+        Html.span [ Attr.class "highlight" ] [ text ]
+  in
+    Html.div [ Attr.class "register" ]
+      [ Html.div [ Attr.class "register-label" ] [ Html.text (label ++ ":") ]
+      , Html.div [ Attr.class "register-value" ] [ inner ]
+      ]
 
 
-memoryView : Memory -> Memory -> Html msg
-memoryView memory prev =
+memoryView : Maybe Dudit -> Memory -> Html msg
+memoryView wroteAddr memory =
   let
     celler coords =
       case coords of
@@ -343,15 +369,24 @@ memoryView memory prev =
               (y - 1) * 10 + (x - 1)
                 |> Dudit.fromInt
 
-            value =
+            text =
               memory
-                |> Memory.load addr
+                |> Memory.read addr
+                |> Dudit.toString
+                |> Html.text
 
-            prevValue =
-              prev
-                |> Memory.load addr
+            highlight =
+              wroteAddr
+                |> Maybe.map (Dudit.eq addr)
+                |> Maybe.withDefault False
+
+            inner =
+              if highlight then
+                Html.span [ Attr.class "highlight" ] [ text ]
+              else
+                text
           in
-            Html.td [] [ highlightChange value prevValue ]
+            Html.td [] [ inner ]
   in
     table [ Attr.class "memory" ] 11 11 celler
 
@@ -368,14 +403,3 @@ table attributes columns rows celler =
         |> Html.tbody []
   in
     Html.table attributes [ tbody ]
-
-
-highlightChange : Dudit -> Dudit -> Html msg
-highlightChange value prev =
-  let
-    inner = Html.text (Dudit.toString value)
-  in
-    if Dudit.eq value prev then
-      inner
-    else
-      Html.span [ Attr.class "highlight" ] [ inner ]

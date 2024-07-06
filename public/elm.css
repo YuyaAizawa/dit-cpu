@@ -16,9 +16,14 @@
   padding-left: 1.4em;
 }
 
+.box-frame {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+}
+
 .flex-container {
   display: flex;
-  justify-content: space-around;
+  justify-content: space-between;
   flex-wrap: wrap;
   column-gap: 2rem;
   align-items: flex-start;
@@ -117,13 +122,13 @@ button {
     }
   }
   .tab-content {
+    height: 21.6rem;
     padding: 4px 10px 20px;
   }
 }
 
 .program {
   width: 100%;
-  height: calc(1.2em * 15);
   background-color: #FFF;
   resize: none;
   overflow-y: scroll;
@@ -133,8 +138,6 @@ button {
   font-family: Consolas, monospace;
   font-size: inherit;
   line-height: 1.2;
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
   .error {
   background-color: var(--accent-muted-color);
   }
@@ -156,12 +159,16 @@ button {
     color: #AAA;
   }
 }
+.editor-content {
+  height: 21.6rem;
+}
+.check-and-run-content {
+  height: 20.4rem;
+}
 
 .registers {
   display: flex;
   justify-content: space-around;
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
   .register {
     font-family: Consolas, monospace;
     padding: 0.2ch 0.2em;
