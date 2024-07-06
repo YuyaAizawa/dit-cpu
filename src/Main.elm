@@ -9,10 +9,12 @@ import Html.Events exposing (onClick)
 import Html.Events.Extra exposing (onChange)
 
 import MomoRisc.Cpu as Cpu exposing (Cpu, MemoryAccessPhaseAction(..))
+import MomoRisc.Device as Device exposing (Chario)
 import MomoRisc.Inst as Inst exposing (Inst, ParseErr)
 import MomoRisc.Memory as Memory exposing (Memory)
 import MomoRisc.Dudit as Dudit exposing (Dudit)
 import MomoRisc.Program as Program exposing (Program, DebugInfo, Errors, LineNum)
+
 
 
 main =
@@ -42,12 +44,6 @@ type alias Model =
   }
 
 
-type alias Chario =
-  { input : String
-  , output : String
-  }
-
-
 type Tab
   = EditTab
   | CheckAndRunTab
@@ -62,7 +58,7 @@ init =
     { cpu = Cpu.init
     , program = program
     , memory = Memory.zeros
-    , chario = Chario sampleInput ""
+    , chario = Device.charioInit |> Device.setInput sampleInput
     , source = sampleCode
     , errors = errors
     , debug = debug
@@ -74,24 +70,26 @@ init =
 
 sampleCode : String
 sampleCode =
-  """; Read two inputs, add them,
-; and write them to the output
-LDI D 90
-LD A D
-LD B D
-ADD C A B
-BLT C A 07 ; Check the carryover
-ST D C
-HLT
-LDI A 01
-ST D A
-ST D C
+  """; Read the input and output it
+; in reverse order.
+LDI B 91
+LDI C 01
+LD A B
+BEQ A D 07
+ST C A
+ADI C C 01
+JPI A 02
+ADI C C 99
+LD A C
+BEQ A D 12
+ST B A
+JPI A 07
 HLT
 """
 
 
 sampleInput : String
-sampleInput = "56 78"
+sampleInput = "KSIRomoM"
 
 
 
@@ -156,8 +154,8 @@ update msg model =
               let
                 ( data, chario ) =
                   case Dudit.toInt addr of
-                    90 -> charioReadNum model.chario
-                  --91 -> charioReadChar
+                    90 -> Device.readNumber model.chario
+                    91 -> Device.readChar model.chario
                   --92 -> plottouchGetX
                   --93 -> plottouchGetY
                     x ->
@@ -174,8 +172,8 @@ update msg model =
               let
                 ( memory, chario ) =
                   case Dudit.toInt addr of
-                    90 -> ( model.memory, charioWriteNum data model.chario )
-                  --91 -> charioWriteChar
+                    90 -> ( model.memory, Device.writeNumber data model.chario )
+                    91 -> ( model.memory, Device.writeChar data model.chario )
                   --92 -> plottouchSetX
                   --93 -> plottouchSetY
                   --94 -> plottouchExecute
@@ -196,63 +194,10 @@ update msg model =
         }
 
     CharioInputEdited str ->
-      let
-        chario = model.chario
-        chario_ = { chario | input = str }
-      in
-        { model | chario = chario_ }
+      { model | chario = Device.setInput str model.chario }
 
     CharioOutputClear ->
-      let
-        chario = model.chario
-        chario_ = { chario | output = "" }
-      in
-        { model | chario = chario_ }
-
-
-
--- CHARIO --
-
-charioReadNum : Chario -> ( Dudit, Chario )
-charioReadNum chario =
-  let
-    ( int, input ) =
-      chario.input |> readUntilNumber (\l tl ->
-        tl |> readUntilNumber (\r rest ->
-          case ( l, r ) of
-            ( Just lnum, Just rnum ) ->
-              ( lnum * 10 + rnum, rest )
-
-            ( Just lnum, Nothing ) ->
-              ( lnum, rest )
-
-            _ ->
-              ( 0, rest )))
-  in
-    ( Dudit.fromInt int, { chario | input = input } )
-
-
-charioWriteNum : Dudit -> Chario -> Chario
-charioWriteNum dudit chario =
-  let
-    output =
-      chario.output ++ (Dudit.toString dudit)
-  in
-    { chario | output = output }
-
-
-readUntilNumber : (Maybe Int -> String -> ( a, String )) -> String -> ( a, String )
-readUntilNumber fun str =
-  case String.uncons str of
-    Nothing ->
-      fun Nothing str
-
-    Just ( hd, tl ) ->
-      hd
-        |> String.fromChar
-        |> String.toInt
-        |> Maybe.map (\i -> fun (Just i) tl)
-        |> Maybe.withDefault (readUntilNumber fun tl)
+      { model | chario = Device.clearOutput model.chario }
 
 
 
@@ -289,7 +234,7 @@ view model =
 
 
 
--- PROGRAM PANE --
+-- PROGRAM VIEW --
 
 programView : Model -> Html Msg
 programView model =
@@ -443,7 +388,7 @@ ariaSelected bool =
 
 
 
--- DATA PANE --
+-- REGISTER VIEW --
 
 registerView : String -> Dudit -> Dudit -> Html msg
 registerView label value prev =
@@ -461,6 +406,9 @@ registerView label value prev =
       , Html.div [ Attr.class "register-value" ] [ inner ]
       ]
 
+
+
+-- MEMORY VIEW --
 
 memoryView : Maybe Dudit -> Memory -> Html msg
 memoryView wroteAddr memory =
@@ -483,8 +431,8 @@ memoryView wroteAddr memory =
 
             text =
               case addr of
-                90 -> "DD"
-              --91 -> "CH"
+                90 -> "NM"
+                91 -> "CH"
               --92 -> "PX"
               --93 -> "PY"
               --94 -> "PE"
@@ -530,12 +478,13 @@ table attributes columns rows celler =
 -- CHARIO VIEW --
 
 charioView : Chario -> Html Msg
-charioView { input, output } =
+charioView chario =
   let
     outputs =
-      output
+      chario
+        |> Device.getOutput
         |> String.lines
-        |> List.map brIfEmpty
+        |> List.map (brIfEmpty >> List.singleton >> Html.div [])
   in
     Html.div []
       [ Html.h3 [] [ Html.text "Input" ]
@@ -543,7 +492,7 @@ charioView { input, output } =
         [ Attr.type_ "text"
         , Attr.class "chario box-frame"
         , Attr.placeholder "Program input here..."
-        , Attr.value input
+        , Attr.value (Device.getInput chario)
         , onChange CharioInputEdited
         ] []
       , Html.div [ Attr.class "h-block" ]
