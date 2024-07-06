@@ -12,95 +12,10 @@
   <h1>MomoRISC</h1>
   <div class="section-container">
     <div id="elm-area"><p>Failed to load elm.js</p></div>
-    <h2>Instruction Set</h2>
-    <div class="section-container">
-      <p>MomoRISCの実装する命令の一覧です．</p>
-      <p>形式の欄のRではじまるものはいずれかの汎用レジスタ（A, B, C, D）を表し，Mem[]はメモリアクセスを表します．immは2桁の数値です．</p>
-      <h3>LDI</h3>
-      <div class="section-container">
-        <ul>
-          <li>形式：LDI R imm
-          <li>疑似コード：R ← imm, PC++
-        </ul>
-      </div>
-      <h3>LD</h3>
-      <div class="section-container">
-        <ul>
-          <li>形式：LD R1 R2
-          <li>疑似コード：R1 ← Mem[R2], PC++
-        </ul>
-      </div>
-      <h3>ST</h3>
-      <div class="section-container">
-        <ul>
-          <li>形式：ST R1 R2
-          <li>疑似コード：Mem[R1] ← R2, PC++
-        </ul>
-      </div>
-      <h3>ADD</h3>
-      <div class="section-container">
-        <ul>
-          <li>形式：ADD R1 R2 R3
-          <li>疑似コード：R1 ← R2 + R3, PC++
-        </ul>
-        <p>R2とR3を足した値をR1に保存します．結果が100以上の場合は100引きます（wrap-around）．</p>
-      </div>
-      <h3>ADI</h3>
-      <div class="section-container">
-        <ul>
-          <li>形式：ADI R1 R2 imm
-          <li>疑似コード：R1 ← R2 + imm, PC++
-        </ul>
-        <p>R2とimmを足した値をR1に保存します．結果が100以上の場合は100引きます（wrap-around）．</p>
-      </div>
-      <h3>SUB</h3>
-      <div class="section-container">
-        <ul>
-          <li>形式：SUB R1 R2 R3
-          <li>疑似コード：R1 ← R2 - R3, PC++
-        </ul>
-        <p>R2からR3を引いた値をR1に保存します．結果が0未満の場合は100足します（wrap-around）．</p>
-      </div>
-      <h3>BEQ</h3>
-      <div class="section-container">
-        <ul>
-          <li>形式：BEQ R1 R2 imm
-          <li>疑似コード：if(R1 = R2) then PC ← imm else PC++
-        </ul>
-      </div>
-      <h3>BLT</h3>
-      <div class="section-container">
-        <ul>
-          <li>形式：BLT R1 R2 imm
-          <li>疑似コード：if(R1 < R2) then PC ← imm else PC++
-        </ul>
-      </div>
-      <h3>JPI</h3>
-      <div class="section-container">
-        <ul>
-          <li>形式：JPI R imm
-          <li>疑似コード：R ← PC + 1, PC ← imm
-        </ul>
-      </div>
-      <h3>JP</h3>
-      <div class="section-container">
-        <ul>
-          <li>形式：JP R1 R2
-          <li>疑似コード：R1 ← PC + 1, PC ← R2
-        </ul>
-      </div>
-      <h3>HLT</h3>
-      <div class="section-container">
-        <ul>
-          <li>形式：HLT
-        </ul>
-        <p>実行を止める命令です．最後に自動で追加される他，エラー行にも置かれます．</p>
-      </div>
-    </div>
-    <footer>
-      <p>code: <a href="https://github.com/YuyaAizawa/momorisc">github.com/YuyaAizawa/momorisc</a></p>
-    </footer>
   </div>
+  <footer>
+    <p>Source code & docs: <a href="https://github.com/YuyaAizawa/momorisc">github.com/YuyaAizawa/momorisc</a></p>
+  </footer>
   </div>
 </body>
 <script>

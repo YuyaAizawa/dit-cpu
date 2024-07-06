@@ -98,7 +98,6 @@ button {
 .tab-container {
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
-  max-width: 500px;
   .tab-nav {
     background-color: var(--base-muted-color);
     border-top-left-radius: var(--border-radius);
@@ -224,7 +223,7 @@ table.memory {
 }
 
 footer {
-  margin-top: 1rem;
-  padding: 2rem;
+  margin-top: 2rem;
+  padding: 1rem 0.5rem;
   border-top: 4px solid var(--base-muted-color);
 }

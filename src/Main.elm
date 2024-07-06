@@ -208,28 +208,25 @@ update msg model =
 view : Model -> Html Msg
 view model =
   Html.div [ Attr.id "elm-erea" ]
-    [ Html.h2 [] [ Html.text "CPU Emulator" ]
-    , Html.div [ Attr.class "section-container" ]
-      [ Html.div [ Attr.class "flex-container" ]
-        [ Html.div [ Attr.class "program-pane" ]
-            [ Html.h3 [] [ Html.text "Program" ]
-            , programView model
-            ]
-        , Html.div [ Attr.class "data-pane" ]
-          [ Html.h3 [] [ Html.text "Register" ]
-          , Html.div [ Attr.class "registers box-frame" ]
-            [ registerView "PC" model.cpu.pc model.lastCycle.pc
-            , registerView "A" model.cpu.a model.lastCycle.a
-            , registerView "B" model.cpu.b model.lastCycle.b
-            , registerView "C" model.cpu.c model.lastCycle.c
-            , registerView "D" model.cpu.d model.lastCycle.d
-            ]
-          , Html.h3 [] [ Html.text "Memory" ]
-          , memoryView model.wroteAddr model.memory
+    [ Html.div [ Attr.class "flex-container" ]
+      [ Html.div [ Attr.class "program-pane" ]
+          [ Html.h3 [] [ Html.text "Program" ]
+          , programView model
           ]
+      , Html.div [ Attr.class "data-pane" ]
+        [ Html.h3 [] [ Html.text "Register" ]
+        , Html.div [ Attr.class "registers box-frame" ]
+          [ registerView "PC" model.cpu.pc model.lastCycle.pc
+          , registerView "A" model.cpu.a model.lastCycle.a
+          , registerView "B" model.cpu.b model.lastCycle.b
+          , registerView "C" model.cpu.c model.lastCycle.c
+          , registerView "D" model.cpu.d model.lastCycle.d
+          ]
+        , Html.h3 [] [ Html.text "Memory" ]
+        , memoryView model.wroteAddr model.memory
         ]
-      , charioView model.chario
       ]
+    , charioView model.chario
     ]
 
 
