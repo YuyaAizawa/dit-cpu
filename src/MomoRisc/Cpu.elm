@@ -132,7 +132,7 @@ step prog cpu =
         cpu_ = write rd (add cpu.pc one) cpu
         cpu__ = { cpu_ | pc = imm }
       in
-        NoAccessNeeded cpu_
+        NoAccessNeeded cpu__
 
     JP rd rs ->
       let
@@ -140,7 +140,7 @@ step prog cpu =
         addr = read rs cpu_
         cpu__ = { cpu_ | pc = addr }
       in
-        NoAccessNeeded cpu_
+        NoAccessNeeded cpu__
 
     HLT ->
       NoAccessNeeded cpu
