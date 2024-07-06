@@ -32,6 +32,7 @@ type alias Model =
   { cpu : Cpu
   , program : Program
   , memory : Memory
+  , chario : Chario
   , source : String
   , errors : Errors
   , debug : DebugInfo
@@ -41,37 +42,57 @@ type alias Model =
   }
 
 
+type alias Chario =
+  { input : String
+  , output : String
+  }
+
+
 type Tab
   = EditTab
-  | CheckTab
+  | CheckAndRunTab
 
 
 init : Model
 init =
   let
     ( program, debug, errors ) =
-      Program.compile ""
+      Program.compile sampleCode
   in
     { cpu = Cpu.init
     , program = program
     , memory = Memory.zeros
+    , chario = Chario sampleInput ""
     , source = sampleCode
     , errors = errors
     , debug = debug
     , lastCycle = Cpu.init
     , wroteAddr = Nothing
-    , tab = EditTab
+    , tab = CheckAndRunTab
     }
 
 
 sampleCode : String
 sampleCode =
-  """LDI B 10
-ST A A
-ADI A A 1
-BLT A B 1
+  """; Read two inputs, add them,
+; and write them to the output
+LDI D 90
+LD A D
+LD B D
+ADD C A B
+BLT C A 07 ; Check the carryover
+ST D C
+HLT
+LDI A 01
+ST D A
+ST D C
 HLT
 """
+
+
+sampleInput : String
+sampleInput = "56 78"
+
 
 
 ------------
@@ -82,6 +103,17 @@ type Msg
   = SourceEdited String
   | TabClicked Tab
   | Step
+  | CharioInputEdited String
+  | CharioOutputClear
+
+
+type alias MemoryAccessPhaseResult =
+  { cpu : Cpu
+  , memory : Memory
+  , chario : Chario
+  , wroteAddr : Maybe Dudit
+  }
+
 
 update : Msg -> Model -> Model
 update msg model =
@@ -94,7 +126,7 @@ update msg model =
         model
       else
         case tab of
-          CheckTab ->
+          CheckAndRunTab ->
             let
               ( program, debug, errors ) =
                 Program.compile model.source
@@ -115,32 +147,113 @@ update msg model =
 
     Step ->
       let
-        ( cpu, memory, wroteAddr ) =
+        result =
           case Cpu.step model.program model.cpu of
-            NoAccessNeeded cpu_ ->
-              ( cpu_, model.memory, Nothing )
+            NoAccessNeeded cpu ->
+              MemoryAccessPhaseResult cpu model.memory model.chario Nothing
 
             ReadNeeded addr fun ->
               let
-                cpu_ =
-                  model.memory
-                    |> Memory.read addr
-                    |> fun
-              in
-                ( cpu_, model.memory, Nothing )
+                ( data, chario ) =
+                  case Dudit.toInt addr of
+                    90 -> charioReadNum model.chario
+                  --91 -> charioReadChar
+                  --92 -> plottouchGetX
+                  --93 -> plottouchGetY
+                    x ->
+                      if x < 90 then
+                        ( Memory.read addr model.memory, model.chario )
+                      else
+                        ( Dudit.zero, model.chario )
 
-            WriteNeeded addr data cpu_ ->
-              let
-                memory_ = model.memory |> Memory.write addr data
+                cpu = fun data
               in
-                ( cpu_, memory_, Just addr )
+                MemoryAccessPhaseResult cpu model.memory chario Nothing
+
+            WriteNeeded addr data cpu ->
+              let
+                ( memory, chario ) =
+                  case Dudit.toInt addr of
+                    90 -> ( model.memory, charioWriteNum data model.chario )
+                  --91 -> charioWriteChar
+                  --92 -> plottouchSetX
+                  --93 -> plottouchSetY
+                  --94 -> plottouchExecute
+                    x ->
+                      if x < 90 then
+                        ( Memory.write addr data model.memory, model.chario )
+                      else
+                        ( model.memory, model.chario )
+              in
+                MemoryAccessPhaseResult cpu memory chario (Just addr)
       in
         { model
-        | cpu = cpu
-        , memory = memory
+        | cpu = result.cpu
+        , memory = result.memory
+        , chario = result.chario
         , lastCycle = model.cpu
-        , wroteAddr = wroteAddr
+        , wroteAddr = result.wroteAddr
         }
+
+    CharioInputEdited str ->
+      let
+        chario = model.chario
+        chario_ = { chario | input = str }
+      in
+        { model | chario = chario_ }
+
+    CharioOutputClear ->
+      let
+        chario = model.chario
+        chario_ = { chario | output = "" }
+      in
+        { model | chario = chario_ }
+
+
+
+-- CHARIO --
+
+charioReadNum : Chario -> ( Dudit, Chario )
+charioReadNum chario =
+  let
+    ( int, input ) =
+      chario.input |> readUntilNumber (\l tl ->
+        tl |> readUntilNumber (\r rest ->
+          case ( l, r ) of
+            ( Just lnum, Just rnum ) ->
+              ( lnum * 10 + rnum, rest )
+
+            ( Just lnum, Nothing ) ->
+              ( lnum, rest )
+
+            _ ->
+              ( 0, rest )))
+  in
+    ( Dudit.fromInt int, { chario | input = input } )
+
+
+charioWriteNum : Dudit -> Chario -> Chario
+charioWriteNum dudit chario =
+  let
+    output =
+      chario.output ++ (Dudit.toString dudit)
+  in
+    { chario | output = output }
+
+
+readUntilNumber : (Maybe Int -> String -> ( a, String )) -> String -> ( a, String )
+readUntilNumber fun str =
+  case String.uncons str of
+    Nothing ->
+      fun Nothing str
+
+    Just ( hd, tl ) ->
+      hd
+        |> String.fromChar
+        |> String.toInt
+        |> Maybe.map (\i -> fun (Just i) tl)
+        |> Maybe.withDefault (readUntilNumber fun tl)
+
 
 
 ----------
@@ -170,6 +283,7 @@ view model =
           , memoryView model.wroteAddr model.memory
           ]
         ]
+      , charioView model.chario
       ]
     ]
 
@@ -192,14 +306,14 @@ programView model =
       [ Html.div [ Attr.class "tab-nav" ]
         [ Html.div [ Attr.class "tabs" ]
           [ tabView EditTab "Edit"
-          , tabView CheckTab "Check & Run"
+          , tabView CheckAndRunTab "Check & Run"
           ]
         ]
       , Html.div [ Attr.class "tab-content" ]
           ( case model.tab of
             EditTab ->
               [ editView model.source ]
-            CheckTab ->
+            CheckAndRunTab ->
               [ checkAndRunView model.source model.debug model.errors model.cpu
               , Html.button [ onClick Step ][ Html.text "Step" ]
               ]
@@ -236,7 +350,7 @@ checkAndRunView source debug errors cpu =
         error =
           Dict.get lineNum errors
       in
-        ( addrView addr, lineView running str error )
+        ( addrView running addr, lineView str error )
 
     ( lineNums, code ) =
       (source ++ "\n")
@@ -247,13 +361,31 @@ checkAndRunView source debug errors cpu =
     Html.div [ Attr.class "program check-and-run-content box-frame" ]
       [ Html.div [ Attr.class "code-with-addr" ]
         [ Html.div [ Attr.class "addr" ] lineNums
-        , Html.div [] code
+        , Html.div [ Attr.class "code" ] code
         ]
       ]
 
 
-lineView : Bool -> String -> Maybe ParseErr -> Html msg
-lineView cursor str maybeErr =
+addrView : Bool -> Maybe Dudit -> Html msg
+addrView running maybeAddr =
+  let
+    content =
+      maybeAddr
+        |> Maybe.map Dudit.toString
+        |> Maybe.withDefault ""
+        |> brIfEmpty
+
+    cursor =
+      Html.span [ Attr.class "cursor" ] [ Html.text "◤" ]
+  in
+    if running then
+      Html.div [] [ content, cursor ]
+    else
+      Html.div [] [ content ]
+
+
+lineView : String -> Maybe ParseErr -> Html msg
+lineView str maybeErr =
   let
     line =
       case maybeErr of
@@ -274,28 +406,9 @@ lineView cursor str maybeErr =
     line_ =
       line
         |> List.intersperse (Html.text " ")
-
-    line__ =
-      if cursor then
-        (Html.span [ Attr.class "cursor" ] [ Html.text "◤" ]) :: line_
-      else
-        line_
-
   in
-    line__
+    line_
       |> Html.div [ Attr.class "line" ]
-
-
-addrView : Maybe Dudit -> Html msg
-addrView maybeAddr =
-  let
-    content =
-      maybeAddr
-        |> Maybe.map Dudit.toString
-        |> Maybe.withDefault ""
-        |> brIfEmpty
-  in
-    Html.div [] [ content ]
 
 
 wordErr : Int -> String -> List (Html msg)
@@ -367,24 +480,32 @@ memoryView wroteAddr memory =
           let
             addr =
               (y - 1) * 10 + (x - 1)
-                |> Dudit.fromInt
 
             text =
-              memory
-                |> Memory.read addr
-                |> Dudit.toString
-                |> Html.text
+              case addr of
+                90 -> "DD"
+              --91 -> "CH"
+              --92 -> "PX"
+              --93 -> "PY"
+              --94 -> "PE"
+                _ ->
+                  if addr < 90 then
+                    memory
+                      |> Memory.read (Dudit.fromInt addr)
+                      |> Dudit.toString
+                  else
+                    "--"
 
             highlight =
               wroteAddr
-                |> Maybe.map (Dudit.eq addr)
+                |> Maybe.map (Dudit.eq (Dudit.fromInt addr))
                 |> Maybe.withDefault False
 
             inner =
               if highlight then
-                Html.span [ Attr.class "highlight" ] [ text ]
+                Html.span [ Attr.class "highlight" ] [ Html.text text ]
               else
-                text
+                Html.text text
           in
             Html.td [] [ inner ]
   in
@@ -403,3 +524,32 @@ table attributes columns rows celler =
         |> Html.tbody []
   in
     Html.table attributes [ tbody ]
+
+
+
+-- CHARIO VIEW --
+
+charioView : Chario -> Html Msg
+charioView { input, output } =
+  let
+    outputs =
+      output
+        |> String.lines
+        |> List.map brIfEmpty
+  in
+    Html.div []
+      [ Html.h3 [] [ Html.text "Input" ]
+      , Html.input
+        [ Attr.type_ "text"
+        , Attr.class "chario box-frame"
+        , Attr.placeholder "Program input here..."
+        , Attr.value input
+        , onChange CharioInputEdited
+        ] []
+      , Html.div [ Attr.class "h-block" ]
+        [ Html.h3 [] [ Html.text "Output" ]
+        , Html.button [ onClick CharioOutputClear ]
+          [ Html.text "clear" ]
+        ]
+      , Html.div [ Attr.class "chario box-frame" ] outputs
+      ]

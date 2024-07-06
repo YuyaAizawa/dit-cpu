@@ -84,7 +84,7 @@ compileLineByLine source =
 trim : String -> String
 trim line =
   line
-    |> String.split "//"
+    |> String.split ";"
     |> List.head
     |> Maybe.withDefault ""
     |> String.trim
