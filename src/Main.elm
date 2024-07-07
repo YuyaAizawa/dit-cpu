@@ -7,6 +7,7 @@ import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick)
 import Html.Events.Extra exposing (onChange)
+import Time
 
 import MomoRisc.Cpu as Cpu exposing (Cpu, MemoryAccessPhaseAction(..))
 import MomoRisc.Device as Device exposing (Chario)
@@ -18,10 +19,11 @@ import MomoRisc.Program as Program exposing (Program, DebugInfo, Errors, LineNum
 
 
 main =
-  Browser.sandbox
-    { init = init
+  Browser.element
+    { init = (\() -> ( init, Cmd.none ))
     , view = view
     , update = update
+    , subscriptions = subscriptions
     }
 
 
@@ -41,6 +43,7 @@ type alias Model =
   , lastCycle : Cpu
   , wroteAddr : Maybe Dudit
   , tab : Tab
+  , speed : Speed
   }
 
 
@@ -65,6 +68,7 @@ init =
     , lastCycle = Cpu.init
     , wroteAddr = Nothing
     , tab = CheckAndRunTab
+    , speed = Stop
     }
 
 
@@ -101,8 +105,15 @@ type Msg
   = SourceEdited String
   | TabClicked Tab
   | Step
+  | SpeedChange Speed
   | CharioInputEdited String
   | CharioOutputClear
+
+
+type Speed
+  = Stop
+  | NormalSpeed
+  | HighSpeed
 
 
 type alias MemoryAccessPhaseResult =
@@ -113,91 +124,101 @@ type alias MemoryAccessPhaseResult =
   }
 
 
-update : Msg -> Model -> Model
+update : Msg -> Model -> ( Model, Cmd msg )
 update msg model =
-  case msg of
-    SourceEdited str ->
-      { model | source = str }
+  let
+    model_ =
+      case msg of
+        SourceEdited str ->
+          { model | source = str }
 
-    TabClicked tab ->
-      if tab == model.tab then
-        model
-      else
-        case tab of
-          CheckAndRunTab ->
-            let
-              ( program, debug, errors ) =
-                Program.compile model.source
-            in
-              { model
-              | program = program
-              , debug = debug
-              , errors = errors
-              , cpu = Cpu.init
-              , memory = Memory.zeros
-              , lastCycle = Cpu.init
-              , wroteAddr = Nothing
-              , tab = tab
-              }
+        TabClicked tab ->
+          if tab == model.tab then
+            model
+          else
+            case tab of
+              EditTab ->
+                { model
+                | speed = Stop
+                , tab = tab }
 
-          _ ->
-            { model | tab = tab }
+              CheckAndRunTab ->
+                let
+                  ( program, debug, errors ) =
+                    Program.compile model.source
+                in
+                  { model
+                  | program = program
+                  , debug = debug
+                  , errors = errors
+                  , cpu = Cpu.init
+                  , memory = Memory.zeros
+                  , lastCycle = Cpu.init
+                  , wroteAddr = Nothing
+                  , tab = tab
+                  }
 
-    Step ->
-      let
-        result =
-          case Cpu.step model.program model.cpu of
-            NoAccessNeeded cpu ->
-              MemoryAccessPhaseResult cpu model.memory model.chario Nothing
+        Step ->
+          let
+            result =
+              case Cpu.step model.program model.cpu of
+                NoAccessNeeded cpu ->
+                  MemoryAccessPhaseResult cpu model.memory model.chario Nothing
 
-            ReadNeeded addr fun ->
-              let
-                ( data, chario ) =
-                  case Dudit.toInt addr of
-                    90 -> Device.readNumber model.chario
-                    91 -> Device.readChar model.chario
-                  --92 -> plottouchGetX
-                  --93 -> plottouchGetY
-                    x ->
-                      if x < 90 then
-                        ( Memory.read addr model.memory, model.chario )
-                      else
-                        ( Dudit.zero, model.chario )
+                ReadNeeded addr fun ->
+                  let
+                    ( data, chario ) =
+                      case Dudit.toInt addr of
+                        90 -> Device.readNumber model.chario
+                        91 -> Device.readChar model.chario
+                      --92 -> plottouchGetX
+                      --93 -> plottouchGetY
+                        x ->
+                          if x < 90 then
+                            ( Memory.read addr model.memory, model.chario )
+                          else
+                            ( Dudit.zero, model.chario )
 
-                cpu = fun data
-              in
-                MemoryAccessPhaseResult cpu model.memory chario Nothing
+                    cpu = fun data
+                  in
+                    MemoryAccessPhaseResult cpu model.memory chario Nothing
 
-            WriteNeeded addr data cpu ->
-              let
-                ( memory, chario ) =
-                  case Dudit.toInt addr of
-                    90 -> ( model.memory, Device.writeNumber data model.chario )
-                    91 -> ( model.memory, Device.writeChar data model.chario )
-                  --92 -> plottouchSetX
-                  --93 -> plottouchSetY
-                  --94 -> plottouchExecute
-                    x ->
-                      if x < 90 then
-                        ( Memory.write addr data model.memory, model.chario )
-                      else
-                        ( model.memory, model.chario )
-              in
-                MemoryAccessPhaseResult cpu memory chario (Just addr)
-      in
-        { model
-        | cpu = result.cpu
-        , memory = result.memory
-        , chario = result.chario
-        , lastCycle = model.cpu
-        , wroteAddr = result.wroteAddr
-        }
+                WriteNeeded addr data cpu ->
+                  let
+                    ( memory, chario ) =
+                      case Dudit.toInt addr of
+                        90 -> ( model.memory, Device.writeNumber data model.chario )
+                        91 -> ( model.memory, Device.writeChar data model.chario )
+                      --92 -> plottouchSetX
+                      --93 -> plottouchSetY
+                      --94 -> plottouchExecute
+                        x ->
+                          if x < 90 then
+                            ( Memory.write addr data model.memory, model.chario )
+                          else
+                            ( model.memory, model.chario )
+                  in
+                    MemoryAccessPhaseResult cpu memory chario (Just addr)
+          in
+            { model
+            | cpu = result.cpu
+            , memory = result.memory
+            , chario = result.chario
+            , lastCycle = model.cpu
+            , wroteAddr = result.wroteAddr
+            }
 
-    CharioInputEdited str ->
-      { model | chario = Device.setInput str model.chario }
+        SpeedChange speed ->
+          { model | speed = speed }
 
-    CharioOutputClear ->
-      { model | chario = Device.clearOutput model.chario }
+        CharioInputEdited str ->
+          { model | chario = Device.setInput str model.chario }
+
+        CharioOutputClear ->
+          { model | chario = Device.clearOutput model.chario }
+
+  in
+    ( model_, Cmd.none )
 
 
 
@@ -207,7 +228,7 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-  Html.div [ Attr.id "elm-erea" ]
+  Html.div [ Attr.id "elm-area" ]
     [ Html.div [ Attr.class "flex-container" ]
       [ Html.div [ Attr.class "program-pane" ]
           [ Html.h3 [] [ Html.text "Program" ]
@@ -228,6 +249,16 @@ view model =
       ]
     , charioView model.chario
     ]
+
+
+brIfEmpty : String -> Html msg
+brIfEmpty str =
+  case str of
+    "" ->
+      Html.br [] []
+
+    _ ->
+      Html.text str
 
 
 
@@ -256,9 +287,7 @@ programView model =
             EditTab ->
               [ editView model.source ]
             CheckAndRunTab ->
-              [ checkAndRunView model.source model.debug model.errors model.cpu
-              , Html.button [ onClick Step ][ Html.text "Step" ]
-              ]
+              [ checkAndRunView model.source model.debug model.errors model.cpu ]
           )
       ]
 
@@ -275,7 +304,7 @@ editView source =
     []
 
 
-checkAndRunView : String -> Dict LineNum Dudit -> Dict LineNum ParseErr -> Cpu -> Html msg
+checkAndRunView : String -> Dict LineNum Dudit -> Dict LineNum ParseErr -> Cpu -> Html Msg
 checkAndRunView source debug errors cpu =
   let
     addrAndCodeView : LineNum -> String -> ( Html msg, Html msg )
@@ -284,7 +313,7 @@ checkAndRunView source debug errors cpu =
         addr =
           Dict.get lineNum debug
 
-        running =
+        now =
           addr
             |> Maybe.map (Dudit.eq cpu.pc)
             |> Maybe.withDefault False
@@ -292,7 +321,7 @@ checkAndRunView source debug errors cpu =
         error =
           Dict.get lineNum errors
       in
-        ( addrView running addr, lineView str error )
+        ( addrView addr, lineView now str error )
 
     ( lineNums, code ) =
       (source ++ "\n")
@@ -300,34 +329,37 @@ checkAndRunView source debug errors cpu =
         |> List.indexedMap addrAndCodeView
         |> List.unzip
   in
-    Html.div [ Attr.class "program check-and-run-content box-frame" ]
-      [ Html.div [ Attr.class "code-with-addr" ]
-        [ Html.div [ Attr.class "addr" ] lineNums
-        , Html.div [ Attr.class "code" ] code
+    Html.div [ Attr.class "check-and-run-content-wrapper" ]
+      [
+        Html.div [ Attr.class "program check-and-run-content box-frame" ]
+          [ Html.div [ Attr.class "code-with-addr" ]
+            [ Html.div [ Attr.class "addr" ] lineNums
+            , Html.div [ Attr.class "code" ] code
+            ]
+          ]
+      , Html.div [ Attr.class "buttons" ]
+        [ Html.button [ onClick Step ] [ stepMark ]
+        , Html.button [ onClick <| SpeedChange Stop ] [ stopMark ]
+        , Html.button [ onClick <| SpeedChange NormalSpeed ] [ playMark ]
+        , Html.button [ onClick <| SpeedChange HighSpeed ] [ fastForwardMark ]
         ]
       ]
 
 
-addrView : Bool -> Maybe Dudit -> Html msg
-addrView running maybeAddr =
+addrView : Maybe Dudit -> Html msg
+addrView maybeAddr =
   let
     content =
       maybeAddr
         |> Maybe.map Dudit.toString
         |> Maybe.withDefault ""
         |> brIfEmpty
-
-    cursor =
-      Html.span [ Attr.class "cursor" ] [ Html.text "◤" ]
   in
-    if running then
-      Html.div [] [ content, cursor ]
-    else
-      Html.div [] [ content ]
+    Html.div [] [ content ]
 
 
-lineView : String -> Maybe ParseErr -> Html msg
-lineView str maybeErr =
+lineView : Bool -> String -> Maybe ParseErr -> Html msg
+lineView executing str maybeErr =
   let
     line =
       case maybeErr of
@@ -345,12 +377,20 @@ lineView str maybeErr =
             Inst.ArgsFormat idx ->
               wordErr idx str
 
+    cursor =
+      Html.div [ Attr.class "cursor" ] []
+
     line_ =
       line
         |> List.intersperse (Html.text " ")
+
+    contents =
+      if executing then
+        cursor :: line_
+      else
+        line_
   in
-    line_
-      |> Html.div [ Attr.class "line" ]
+    Html.div [ Attr.class "line" ] contents
 
 
 wordErr : Int -> String -> List (Html msg)
@@ -369,14 +409,35 @@ errSpan str =
   Html.span [ Attr.class "error" ] [ Html.text str ]
 
 
-brIfEmpty : String -> Html msg
-brIfEmpty str =
-  case str of
-    "" ->
-      Html.br [] []
+stepMark : Html msg
+stepMark =
+  Html.div [ Attr.class "mark" ]
+    [ Html.div [ Attr.class "triangle" ] []
+    , Html.div [ Attr.class "bar crimp" ] []
+    ]
 
-    _ ->
-      Html.text str
+
+stopMark : Html msg
+stopMark =
+  Html.div [ Attr.class "mark" ]
+    [ Html.div [ Attr.class "bar" ] []
+    , Html.div [ Attr.class "bar gap" ] []
+    ]
+
+
+playMark : Html msg
+playMark =
+  Html.div [ Attr.class "mark" ]
+    [ Html.div [ Attr.class "triangle" ] []
+    ]
+
+
+fastForwardMark : Html msg
+fastForwardMark =
+  Html.div [ Attr.class "mark" ]
+    [ Html.div [ Attr.class "triangle-thin" ] []
+    , Html.div [ Attr.class "triangle-thin crimp" ] []
+    ]
 
 
 ariaSelected : Bool -> Html.Attribute msg
@@ -499,3 +560,21 @@ charioView chario =
         ]
       , Html.div [ Attr.class "chario box-frame" ] outputs
       ]
+
+
+
+-------------------
+-- SUBSCRIPTIONS --
+-------------------
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+  case model.speed of
+    Stop ->
+      Sub.none
+
+    NormalSpeed ->
+      Time.every 140 (\_ -> Step)
+
+    HighSpeed ->
+      Time.every 28 (\_ -> Step)
