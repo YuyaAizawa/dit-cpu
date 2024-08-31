@@ -476,10 +476,10 @@ memoryView wroteAddr memory =
         ( 0, 0 ) ->
           Html.th [] []
 
-        ( 0, x ) ->
+        ( x, 0 ) ->
           Html.th [] [ Html.text <| String.fromInt <| x - 1 ]
 
-        ( y, 0 ) ->
+        ( 0, y ) ->
           Html.th [] [ Html.text <| String.fromInt <| (y - 1) * 10 ]
 
         ( x, y ) ->
