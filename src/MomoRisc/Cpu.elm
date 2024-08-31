@@ -5,7 +5,7 @@ module MomoRisc.Cpu exposing
   , step
   )
 
-import MomoRisc.Dudit as Dudit exposing (Dudit, zero, one, add, sub, toInt)
+import MomoRisc.Dudit as Dudit exposing (Dudit, zero, one, add, sub, mul, muh, toInt)
 import MomoRisc.Inst as Inst exposing (Inst(..))
 import MomoRisc.Program as Program exposing (Program)
 import MomoRisc.Reg as Reg exposing (Reg(..))
@@ -96,6 +96,30 @@ step prog cpu =
         o1 = read rs1 cpu
         o2 = read rs2 cpu
         r = sub o1 o2
+        cpu_ =
+          cpu
+            |> write rd r
+            |> incPc
+      in
+        NoAccessNeeded cpu_
+
+    MUL rd rs1 rs2 ->
+      let
+        o1 = read rs1 cpu
+        o2 = read rs2 cpu
+        r = mul o1 o2
+        cpu_ =
+          cpu
+            |> write rd r
+            |> incPc
+      in
+        NoAccessNeeded cpu_
+
+    MUH rd rs1 rs2 ->
+      let
+        o1 = read rs1 cpu
+        o2 = read rs2 cpu
+        r = muh o1 o2
         cpu_ =
           cpu
             |> write rd r

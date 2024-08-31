@@ -9,6 +9,8 @@ module MomoRisc.Dudit exposing
   , toString
   , add
   , sub
+  , mul
+  , muh
   )
 
 
@@ -70,5 +72,21 @@ sub (Dudit a) (Dudit b) =
   let
     c = a - b
     d = if 0 < c then c else c + 100
+  in
+    Dudit d
+
+mul : Dudit -> Dudit -> Dudit
+mul (Dudit a) (Dudit b) =
+  let
+    c = a * b
+    d = modBy 100 c
+  in
+    Dudit d
+
+muh : Dudit -> Dudit -> Dudit
+muh (Dudit a) (Dudit b) =
+  let
+    c = a * b
+    d = c // 100
   in
     Dudit d

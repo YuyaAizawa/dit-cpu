@@ -16,6 +16,8 @@ type Inst
   | ADD Reg Reg Reg  -- Reg1 <- Reg2 + Reg3
   | ADI Reg Reg Imm  -- Reg1 <- Reg2 + Imm
   | SUB Reg Reg Reg  -- Reg1 <- Reg2 - Reg3
+  | MUL Reg Reg Reg  -- Reg1 <- L(Reg2 * Reg3)
+  | MUH Reg Reg Reg  -- Reg1 <- H(Reg2 * Reg3)
   | BEQ Reg Reg Imm  -- PC <- Imm if Reg1 = Reg2
   | BLT Reg Reg Imm  -- PC <- Imm if Reg1 < Reg2
   | JPI Reg Imm      -- Reg <- PC + 1, PC <- Imm
@@ -77,6 +79,20 @@ parse str =
             |> reg 1 (\r1 args1 -> args1
             |> reg 2 (\r2 args2 -> args2
             |> reg 3 (\r3 args3 -> Ok (SUB r1 r2 r3)))))
+
+        "MUL" ->
+          args
+            |> checkLength 3 (\args0 -> args0
+            |> reg 1 (\r1 args1 -> args1
+            |> reg 2 (\r2 args2 -> args2
+            |> reg 3 (\r3 args3 -> Ok (MUL r1 r2 r3)))))
+
+        "MUH" ->
+          args
+            |> checkLength 3 (\args0 -> args0
+            |> reg 1 (\r1 args1 -> args1
+            |> reg 2 (\r2 args2 -> args2
+            |> reg 3 (\r3 args3 -> Ok (MUH r1 r2 r3)))))
 
         "BEQ" ->
           args
