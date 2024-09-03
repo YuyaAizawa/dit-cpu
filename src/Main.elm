@@ -537,29 +537,25 @@ table attributes columns rows celler =
 
 charioView : Chario -> Html Msg
 charioView chario =
-  let
-    outputs =
-      chario
-        |> Device.getOutput
-        |> String.lines
-        |> List.map (brIfEmpty >> List.singleton >> Html.div [])
-  in
-    Html.div []
-      [ Html.h3 [] [ Html.text "Input" ]
-      , Html.input
-        [ Attr.type_ "text"
-        , Attr.class "chario box-frame"
-        , Attr.placeholder "Program input here..."
-        , Attr.value (Device.getInput chario)
-        , onChange CharioInputEdited
-        ] []
-      , Html.div [ Attr.class "h-block" ]
-        [ Html.h3 [] [ Html.text "Output" ]
-        , Html.button [ onClick CharioOutputClear ]
-          [ Html.text "clear" ]
-        ]
-      , Html.div [ Attr.class "chario box-frame" ] outputs
+  Html.div []
+    [ Html.h3 [] [ Html.text "Input" ]
+    , Html.input
+      [ Attr.type_ "text"
+      , Attr.class "chario box-frame"
+      , Attr.placeholder "Program input here..."
+      , Attr.value (Device.getInput chario)
+      , onChange CharioInputEdited
+      ] []
+    , Html.div [ Attr.class "h-block" ]
+      [ Html.h3 [] [ Html.text "Output" ]
+      , Html.button [ onClick CharioOutputClear ]
+        [ Html.text "clear" ]
       ]
+    , Html.div [ Attr.class "chario box-frame" ]
+      [ Html.pre []
+        [ Html.text <| Device.getOutput chario ]
+      ]
+    ]
 
 
 

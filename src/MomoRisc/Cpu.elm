@@ -158,7 +158,7 @@ step prog cpu =
       in
         NoAccessNeeded cpu__
 
-    JP rd rs ->
+    JP rd rs -> -- FIXME: work for same register
       let
         cpu_ = write rd (add cpu.pc one) cpu
         addr = read rs cpu_
